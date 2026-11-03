@@ -89,11 +89,13 @@ shini_parse_section()
     # Iterate INI file line by line
     LINE_NUM=-1
     SECTION=''
-    while read -r LINE || [ -n "$LINE" ]; do  # -n $LINE catches final line if not empty
+    while IFS= read -r LINE || [ -n "$LINE" ]; do  # -n $LINE catches final line if not empty
         LINE_NUM=$((LINE_NUM+1))
 
-        # `read` already strips leading/trailing blanks with the default IFS; this keeps
-        # parsing tolerant if the caller changed IFS.  It costs two cheap pattern matches.
+        # The line exactly as it appears in the file (callbacks such as the writer use it
+        # to reproduce untouched lines unchanged).  $LINE below is trimmed for parsing.
+        RAW_LINE="$LINE"
+
         case "$LINE" in
             [[:blank:]]*) LINE="${LINE#"${LINE%%[![:blank:]]*}"}" ;;
         esac
@@ -260,39 +262,47 @@ shini_write()
             fi
         fi
 
-        printf "\n[%s]" "$1" >&3
+        printf '\n%s' "$RAW_LINE" >&3
 
         LAST_SECTION="$1"
     }
 
+    # The comment of a line we rewrite (the target key) is re-attached here.  For lines
+    # copied verbatim the comment is already part of the copied line.
     # shellcheck disable=SC2317
     __shini_parsed_comment__writer()
     {
-        printf " ;%s" "$1" >&3
+        [ -n "$KEEP_COMMENT" ] && printf " ;%s" "$1" >&3
+        return 0
     }
 
     # shellcheck disable=SC2317
     __shini_parsed_comment_line__writer()
     {
-        printf "\n;%s" "$1" >&3
+        printf '\n%s' "$RAW_LINE" >&3
     }
 
+    # Only the line holding the target key is regenerated (using PRINTFMT).  Every other
+    # line is written out exactly as it was read, so existing quoting, spacing and
+    # comments are left alone.
     # shellcheck disable=SC2317
     __shini_parsed__writer()
     {
         if [ "$1" = "$WRITE_SECTION" ]; then
             if [ "$2" = "$WRITE_KEY" ]; then
+                KEEP_COMMENT=''
                 if [ -n "$WRITE_VALUE" ]; then
                     # shellcheck disable=SC2059
                     printf "$PRINTFMT" "$WRITE_KEY" "$WRITE_VALUE" >&3
+                    KEEP_COMMENT=1
                 fi
                 VALUE_WRITTEN=1
-                return
+                return 0
             fi
         fi
 
-        # shellcheck disable=SC2059
-        printf "$PRINTFMT" "$2" "$3" >&3
+        KEEP_COMMENT=''
+        printf '\n%s' "$RAW_LINE" >&3
     }
 
     if [ $# -lt 3 ]; then

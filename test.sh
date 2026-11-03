@@ -178,8 +178,19 @@ if ! grep -q '^qqq="ddd"$' "$TEMP"; then
     FAIL=1
 fi
 
-if ! grep -q '^quack="duck"; comment$' "$TEMP"; then
-    echo "Quoted write corruption (quack=\"duck\"; comment)"
+# Lines other than the one being written must be left exactly as they were (issue #13)
+if ! grep -q '^quack=duck *; comment$' "$TEMP"; then
+    echo "Quoted write corruption (quack=duck was changed)"
+    FAIL=1
+fi
+
+if ! grep -q '^def="456" *; comment$' "$TEMP"; then
+    echo "Write corruption (quoted def=\"456\" lost its quotes)"
+    FAIL=1
+fi
+
+if ! grep -q '^ccc=ccc$' "$TEMP"; then
+    echo "Quoted write corruption (unquoted ccc=ccc was changed)"
     FAIL=1
 fi
 
@@ -193,6 +204,38 @@ if [ "$FAIL" -ne 0 ]; then
 	cat "$TEMP"
 	echo "************        EOF        ************"
 fi
+
+## Writing must not alter other lines: quotes, indentation, spacing, comments (issue #13)
+
+TEMP13="$(mktemp -t shini_test13_XXXXXX)"
+printf '[Sec]\nquoted="string value"\nplain=abc\n  indented = "x"  ; cm ; two\n  ; indented comment\n[Other]\nk=v' > "$TEMP13"
+
+shini_write "$TEMP13" "Sec" "added" "1"
+shini_write "$TEMP13" "Sec" "added2" "two words" true
+shini_write "$TEMP13" "Other" "k" "new"
+
+for EXPECTED in 'quoted="string value"' 'plain=abc' '  indented = "x"  ; cm ; two' '  ; indented comment' 'added=1' 'added2="two words"' 'k=new'; do
+    if ! grep -qxF -- "$EXPECTED" "$TEMP13"; then
+        echo "Write changed or lost a line (issue #13): '$EXPECTED'"
+        FAIL=1
+    fi
+done
+
+# Updating a key keeps its comment; deleting a key removes its comment with it
+printf '[S]\na=1 ; keep me\nb=2 ; drop me\nc=3\n' > "$TEMP13"
+shini_write "$TEMP13" "S" "a" "9"
+shini_write "$TEMP13" "S" "b" ""
+if ! grep -qx 'a=9 ; keep me' "$TEMP13" || grep -q 'drop me' "$TEMP13" || ! grep -qx 'c=3' "$TEMP13"; then
+    echo "Update/delete handled comments wrongly"
+    FAIL=1
+fi
+
+if [ "$FAIL" -ne 0 ]; then
+    echo "************ Resulting INI (3) ************"
+    cat "$TEMP13"
+    echo "************        EOF        ************"
+fi
+rm -f "$TEMP13"
 
 ## Specific section test
 
