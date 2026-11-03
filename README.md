@@ -244,3 +244,42 @@ Due to portability constraints - some of the useful regex power isn't available 
 This caused some trade-offs - with a lack of efficient control over lazy vs greedy repeats and optional groups etc, comments can only follow key/pair values and empty lines (not sections) - and where it follows values, any whitespace between the value and semi-colon is included as the value.  Explicitly use of double-quotes around the value gets around this issue.
 
 Otherwise, all known "obviously invalid" INI content gets picked up and reported.
+
+## Changes in this fork
+
+This fork ([amtssp/shini](https://github.com/amtssp/shini)) makes `shini` fast and working on BusyBox `ash` (e.g. piCorePlayer).  The original code is by wallyhall (Matthew Hall) and is released under the MIT license, see `LICENSE`.
+
+### Why
+
+The original parser spawned `grep` and `sed` for several checks on every line, which is very slow where process creation is expensive.  It also relied on bash/ksh/zsh features (`${BASH_VERSINFO[0]}`, `[[ =~ ]]`) and on `grep` regexes that BusyBox/dash don't evaluate the same way, so it did not work in plain `ash` or `dash` at all.  Parsing now uses POSIX `case` patterns and parameter expansion only: no regex, no `grep`/`sed`, no subshell per line.
+
+### Speed
+
+`php.ini` from `tests/` (1917 lines), BusyBox 1.37 `ash`, best of 3.  "Before" is the original code with only the `grep` call fixed so that it runs in `ash` at all.  Measured on an x86 VM, not on a Raspberry Pi, so absolute numbers will differ on a Pi, but the ratio should be similar.
+
+| Operation                                  | Before  | After    |
+|--------------------------------------------|---------|----------|
+| `shini_parse` of the whole file            | 9.5 s   | 0.06 s   |
+| `shini_parse_section` of one small section | 1.7 s   | 0.025 s  |
+| `shini_read` of a key near the end         | 9.1 s   | 0.05 s   |
+| 7 x `shini_write`                          | 70 s    | 0.5 s    |
+
+The original under bash (using `[[ =~ ]]`) parses the same file in about 0.3 s; the new code takes about 0.08 s in bash.  Output is identical to the original under bash for the test files in this repository.
+
+### Behaviour changes
+
+ * `shini_write` only rewrites the line holding the key being written.  Every other line, including quotes, indentation, spacing, section headers and comments, is written out exactly as it was (upstream issue #13).  Updating a key keeps its comment; deleting a key removes its comment too.
+ * Comments are everything after the first `;` that is not inside a quoted value.  Previously the text after the *last* `;` was used, so comments containing `;` were cut short on every write, and a `;` inside a quoted value was reported as a comment.
+ * Keys may contain `-`, as documented above.  Previously they were rejected under bash/ksh/zsh because of a quirk in the regular expression.
+ * Line numbers passed to `__shini_parse_error` are counted once per line.  They were counted twice when filtering with `shini_parse_section`.
+ * A missing or unreadable file, or no file argument, now returns immediately (253 and 254) after the optional callback, instead of carrying on.
+ * The parser sets `RAW_LINE` to the current line exactly as read, for use in callbacks.
+ * Removed the internal helpers `shini_setup`, `shini_teardown`, `shini_regex_match` and `shini_regex_extract`; they are no longer needed.
+
+### Writing keys outside any section
+
+To write a key that is not inside a section, pass an empty string as the section, e.g. `shini_write file.ini "" key value`.  The key is placed before the first section.  Leaving the section argument out shifts the arguments and writes the wrong thing.
+
+### Tested with
+
+`test.sh` and `test_perf.sh` pass under BusyBox 1.37 `ash`, `dash` and `bash`.  `ksh` and `zsh` have not been tested with these changes.

@@ -4,6 +4,9 @@
 # This code is released freely under the MIT license - see the shipped LICENSE document.
 # For the latest version etc, please see https://github.com/wallyhall/shini
 #
+# This copy is modified for speed and busybox ash compatibility - see "Changes in this fork"
+# in the README.  Original code (c) 2014 wallyhall (Matthew Hall), MIT license.
+#
 
 # Solely for the purpose of portable performance, this script breaks good practice to
 # avoid forking subshells.  One such good practice is avoiding global variables.
