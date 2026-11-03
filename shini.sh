@@ -156,6 +156,7 @@ shini_parse_section()
         # Check for key/value lines:  key = value [; comment]
         #   key    [a-zA-Z0-9_.-]+
         #   value  "quoted"  or  unquoted (no double quotes, ends at first ';')
+        #          a missing closing quote makes the value the rest of the line
         KV=''
         case "$LINE" in
             *=*)
@@ -187,6 +188,12 @@ shini_parse_section()
                                                 KV=1
                                                 ;;
                                         esac
+                                        ;;
+                                    *)
+                                        # No closing quote - the value is the rest of the line,
+                                        # as with the original parser.
+                                        VALUE="$TMP"
+                                        KV=1
                                         ;;
                                 esac
                                 ;;
