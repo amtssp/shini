@@ -237,6 +237,31 @@ if [ "$FAIL" -ne 0 ]; then
 fi
 rm -f "$TEMP13"
 
+## A quoted value without a closing quote is a parse error, not a value
+
+# shellcheck disable=SC2317
+__shini_parsed_unterminated()
+{
+    UNTERMINATED="$3"
+}
+
+# shellcheck disable=SC2317
+__shini_parse_error_unterminated()
+{
+    UNTERMINATED_ERROR=1
+}
+
+TEMPU="$(mktemp -t shini_testu_XXXXXX)"
+printf '[S]\nk="abc ; def\n' > "$TEMPU"
+UNTERMINATED=''
+UNTERMINATED_ERROR=''
+shini_parse "$TEMPU" "unterminated"
+if [ -n "$UNTERMINATED" ] || [ -z "$UNTERMINATED_ERROR" ]; then
+    echo "Unterminated quoted value was accepted: '$UNTERMINATED'"
+    FAIL=1
+fi
+rm -f "$TEMPU"
+
 ## Specific section test
 
 shini_parse_section "tests/test1.ini" "test1sectionA" "specific_test1"
