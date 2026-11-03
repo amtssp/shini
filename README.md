@@ -282,4 +282,4 @@ To write a key that is not inside a section, pass an empty string as the section
 
 ### Tested with
 
-`test.sh` and `test_perf.sh` pass under BusyBox 1.37 `ash`, `dash` and `bash`.  `ksh` and `zsh` have not been tested with these changes.
+`test.sh` and `test_perf.sh` pass under BusyBox 1.37 `ash`, `dash`, `bash` 5.2, `ksh` (AT&T 93u+m 1.0.8), `mksh` R59 and `zsh` 5.9 (also with `--emulate sh`).  The parser output is identical across all of them.  Not yet tested on a real Raspberry Pi / piCore.
