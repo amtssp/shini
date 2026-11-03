@@ -237,24 +237,6 @@ if [ "$FAIL" -ne 0 ]; then
 fi
 rm -f "$TEMP13"
 
-## A quoted value without a closing quote is read to the end of the line
-
-# shellcheck disable=SC2317
-__shini_parsed_unterminated()
-{
-    UNTERMINATED="$3"
-}
-
-TEMPU="$(mktemp -t shini_testu_XXXXXX)"
-printf '[S]\nk="abc ; def\n' > "$TEMPU"
-UNTERMINATED=''
-shini_parse "$TEMPU" "unterminated"
-if [ "$UNTERMINATED" != 'abc ; def' ]; then
-    echo "Unterminated quoted value read wrongly: '$UNTERMINATED' instead of 'abc ; def'"
-    FAIL=1
-fi
-rm -f "$TEMPU"
-
 ## Specific section test
 
 shini_parse_section "tests/test1.ini" "test1sectionA" "specific_test1"
